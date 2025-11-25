@@ -1,0 +1,17 @@
+{
+	"servers": {
+		"se-ai-finance": {
+			"url": "http://ds-mcp.kong-sales-engineering.com/finance",
+			"type": "http"
+		},
+		"claims-service": {
+			"url": "http://ds-mcp.kong-sales-engineering.com/claims",
+			"type": "http"
+		},
+		"network-api-service": {
+			"url": "http://ds-mcp.kong-sales-engineering.com/network",
+			"type": "http"
+		}
+	},
+	"inputs": []
+}

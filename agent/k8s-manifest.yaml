@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-test
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-test-config
+  namespace: agent-test
+data:
+  PROXY_BASE_URL: "http://localhost:8000/v1"
+  MCP_SERVER_URL: "http://api-service.default.svc.cluster.local:9080"
+  # Add your custom headers as needed
+  # X_CUSTOM_HEADER: "your-value"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: agent-test-secrets
+  namespace: agent-test
+type: Opaque
+stringData:
+  PROXY_API_KEY: "sk-not-needed"
+  # Add other sensitive data here
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-test
+  namespace: agent-test
+  labels:
+    app: agent-test
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: agent-test
+  template:
+    metadata:
+      labels:
+        app: agent-test
+    spec:
+      containers:
+      - name: agent-test
+        image: sal1103/agent-test:latest  # Replace with your registry/image:tag
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3443
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PROXY_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: agent-test-config
+              key: PROXY_BASE_URL
+        - name: PROXY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agent-test-secrets
+              key: PROXY_API_KEY
+        - name: MCP_SERVER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: agent-test-config
+              key: MCP_SERVER_URL
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3443
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3443
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-test
+  namespace: agent-test
+  labels:
+    app: agent-test
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-test
+  ports:
+  - port: 80
+    targetPort: 3443
+    protocol: TCP
+    name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-test-loadbalancer
+  namespace: agent-test
+  labels:
+    app: agent-test
+spec:
+  type: LoadBalancer
+  selector:
+    app: agent-test
+  ports:
+  - port: 80
+    targetPort: 3443
+    protocol: TCP
+    name: http
