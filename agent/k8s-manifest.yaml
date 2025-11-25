@@ -9,8 +9,8 @@ metadata:
   name: agent-test-config
   namespace: agent-test
 data:
-  PROXY_BASE_URL: "http://localhost:8000/v1"
-  MCP_SERVER_URL: "http://api-service.default.svc.cluster.local:9080"
+  PROXY_BASE_URL: "http://mcp-control-plane-loadbalancer.kong.svc.cluster.local:8080/chat"
+  MCP_SERVER_URL: "http://mcp-control-plane-loadbalancer.kong.svc.cluster.local:8080/marketplace"
   # Add your custom headers as needed
   # X_CUSTOM_HEADER: "your-value"
 ---
@@ -44,7 +44,7 @@ spec:
       containers:
       - name: agent-test
         image: sal1103/agent-test:latest  # Replace with your registry/image:tag
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 3443
           name: http
@@ -116,7 +116,7 @@ metadata:
   labels:
     app: agent-test
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app: agent-test
   ports:

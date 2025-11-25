@@ -5,6 +5,7 @@ import {
   run,
   MCPServerStreamableHttp,
   setDefaultOpenAIClient,
+  OpenAIChatCompletionsModel
 } from '@openai/agents';
 
 
@@ -25,7 +26,7 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 // Configure OpenAI client to use HTTP proxy
 // You can point this to any OpenAI-compatible API (e.g., LiteLLM, local models, other providers)
 const customClient = new OpenAI({
-  baseURL: process.env.PROXY_BASE_URL || 'http://localhost:8000/v1', // Your proxy endpoint
+  baseURL: process.env.PROXY_BASE_URL || 'http://localhost:8000', // Your proxy endpoint (without /v1)
   apiKey: process.env.PROXY_API_KEY || 'sk-not-needed', // Required by SDK even if proxy doesn't need it
   defaultHeaders: {
     'X-Custom-Header': 'your-value',
@@ -34,6 +35,8 @@ const customClient = new OpenAI({
     // 'X-API-Key': 'your-api-key',
   },
 });
+
+const chatModel = new OpenAIChatCompletionsModel(customClient, 'gpt-4');
 
 // Set the custom client as default for all agents
 setDefaultOpenAIClient(customClient);
@@ -61,6 +64,7 @@ app.post('/ask', async (req: Request, res: Response) => {
   try {
     
       const agent = new Agent({
+        model: chatModel,
         name: 'Users and Orders Assistant',
         instructions: 'Use the tools to respond to user requests where appropriate. Output should be in markdown.',
         mcpServers: [mcpServer],
