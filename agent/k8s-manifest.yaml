@@ -116,7 +116,7 @@ metadata:
   labels:
     app: agent-test
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: agent-test
   ports:
