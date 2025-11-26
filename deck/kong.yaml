@@ -1,6 +1,9 @@
 _format_version: "3.0"
 _konnect:
   control_plane_name: mcp-control-plane
+_info:
+  select_tags:
+    - mcp:example
 services:
 - host: localhost
   name: llm-target-service
