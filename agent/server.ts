@@ -1,56 +1,33 @@
-// import https from 'https';
-import fs from 'fs';
-import {
-  Agent,
-  run,
-  MCPServerStreamableHttp,
-  setDefaultOpenAIClient,
-  OpenAIChatCompletionsModel
-} from '@openai/agents';
-
-
-import { OpenAI } from 'openai';
-
-import path from 'path';
-
-// Use require for express
 import express from 'express';
-const app = express();
-
-// Proper typing
 import type { Request, Response } from 'express';
+import path from 'path';
+import events from 'events';
+import { ChatOpenAI } from '@langchain/openai';
+import { MultiServerMCPClient } from "@langchain/mcp-adapters";
+import { createAgent, HumanMessage, SystemMessage } from 'langchain';
+
+const app = express();
 
 app.use(express.json());
 app.use(express.static(path.join(process.cwd(), 'public')));
 
-// Configure OpenAI client to use HTTP proxy
-// You can point this to any OpenAI-compatible API (e.g., LiteLLM, local models, other providers)
-const customClient = new OpenAI({
-  baseURL: process.env.PROXY_BASE_URL || 'http://localhost:8000', // Your proxy endpoint (without /v1)
-  apiKey: process.env.PROXY_API_KEY || 'sk-not-needed', // Required by SDK even if proxy doesn't need it
-  defaultHeaders: {
-    'X-Custom-Header': 'your-value',
-    // Add any other headers you need here
-    // 'Authorization': 'Bearer your-token',
-    // 'X-API-Key': 'your-api-key',
+events.setMaxListeners(100)
+
+// Configure LangChain ChatOpenAI model
+const llm = new ChatOpenAI({
+  configuration: {
+    baseURL: process.env.PROXY_BASE_URL || 'http://localhost:8000',
+    apiKey: process.env.PROXY_API_KEY || 'sk-not-needed',
   },
+  model: "",
+  streaming: true,
 });
 
-const chatModel = new OpenAIChatCompletionsModel(customClient, 'gpt-4');
-
-// Set the custom client as default for all agents
-setDefaultOpenAIClient(customClient);
-
-const mcpServer = new MCPServerStreamableHttp({
-        url: process.env.MCP_SERVER_URL || 'http://localhost/marketplace',
-        name: 'User and Orders Service',
-      });
-
 app.post('/ask', async (req: Request, res: Response) => {
-  const { prompt, mcpServers, headers: customHeaders } = req.body;
+  const { prompt } = req.body;
 
-  if (!prompt || !Array.isArray(mcpServers)) {
-    return res.status(400).json({ error: 'Missing prompt or mcpServers array' });
+  if (!prompt) {
+    return res.status(400).json({ error: 'Missing prompt' });
   }
   
   res.set({
@@ -60,53 +37,49 @@ app.post('/ask', async (req: Request, res: Response) => {
     'Connection': 'keep-alive',
   });
   res.flushHeaders();
-
+  let mcpClient = null
   try {
-    
-      const agent = new Agent({
-        model: chatModel,
-        name: 'Users and Orders Assistant',
-        instructions: 'Use the tools to respond to user requests where appropriate. Output should be in markdown.',
-        mcpServers: [mcpServer],
-      });
-
-    await mcpServer.connect();
-    
-    const result = await run(agent, prompt, { stream: true });
-    const textStream = result.toTextStream({ compatibleWithNodeStreams: true });
-
-    textStream.on('data', (chunk: Buffer) => {
-      const text = chunk.toString('utf-8');
-      
-      res.write(`data: ${JSON.stringify({content:text})}\n\n`);
+    // Create prompt template
+    mcpClient = new MultiServerMCPClient({
+      orders: {
+        transport: "http",
+        url: process.env.MCP_SERVER_URL || 'http://localhost/marketplace',  },
     });
 
-    textStream.on('end', () => {
-      res.write('event: done\ndata: \n\n');
-      res.end();
+    const agent = createAgent({
+      model: llm,
+      tools: await mcpClient.getTools(),
     });
 
-    textStream.on('error', (err: Error) => {
-      console.error('Stream error:', err);
-      res.write(`event: error\ndata: ${err.message}\n\n`);
-      res.end();
-    });
+    const system = new SystemMessage('You are a helpful assistant. Use the tools to respond to user requests where appropriate. Output should be in markdown.');
+    const human = new HumanMessage(prompt);
+    const stream = await agent.stream({
+      messages: [system, human],
+    },
+    {streamMode: 'messages'});
 
-    req.on('close', () => {
-      textStream.destroy();
-    });
+    for await (const [token, metadata] of stream) {
+        // console.log(`node: ${metadata.langgraph_node}`);
+        // console.log(`content: ${JSON.stringify(token.content, null, 2)}`);
+        if (metadata.langgraph_node == 'model_request' && token.content) {
+          res.write(`data: ${JSON.stringify({ content: token.content })}\n\n`);
+        }
+    }
 
-    await result.completed;
+    res.write('event: done\ndata: \n\n');
+    res.end();
   } catch (err: any) {
     console.error('Fatal:', err);
     if (!res.headersSent) {
-      res.status(500).send('Server error');
+      res.status(500).json({ error: err.message });
     } else {
       res.write(`event: error\ndata: ${err.message}\n\n`);
       res.end();
     }
   } finally {
-    await mcpServer.close();
+    if (mcpClient) {
+      await mcpClient.close();
+    }
   }
 });
 
@@ -114,17 +87,7 @@ app.post('/ask', async (req: Request, res: Response) => {
 app.use((req: Request, res: Response) => {
   res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
 });
-// // HTTPS server
-// const HTTPS_OPTIONS = {
-//   key: fs.readFileSync('certs/key.pem'),
-//   cert: fs.readFileSync('certs/cert.pem'),
-// };
-
-// https.createServer(HTTPS_OPTIONS, app).listen(3443, () => {
-//   console.log('HTTPS SSE server running on https://localhost:3443');
-// });
-
 
 app.listen(3443, () => {
-  console.log(`Server running on http://localhost: 3443`);
+  console.log(`Server running on http://localhost:3443`);
 });

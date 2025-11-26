@@ -1,0 +1,137 @@
+_format_version: "3.0"
+_konnect:
+  control_plane_name: mcp-control-plane
+services:
+- host: localhost
+  name: llm-target-service
+  plugins:
+  - config:
+      targets:
+      - auth:
+          allow_override: false
+          aws_access_key_id: null
+          aws_secret_access_key: null
+          azure_client_id: null
+          azure_client_secret: null
+          azure_tenant_id: null
+          azure_use_managed_identity: false
+          gcp_service_account_json: null
+          gcp_use_service_account: false
+          header_name: Authorization
+          header_value: '{vault://mcpvault/openai-key}'
+          param_location: null
+          param_name: null
+          param_value: null
+        description: null
+        logging:
+          log_payloads: false
+          log_statistics: true
+        model:
+          name: gpt-4
+          options:
+            anthropic_version: null
+            azure_api_version: "2023-05-15"
+            azure_deployment_id: null
+            azure_instance: null
+            bedrock:
+              aws_assume_role_arn: null
+              aws_region: null
+              aws_role_session_name: null
+              aws_sts_endpoint_url: null
+              embeddings_normalize: false
+              performance_config_latency: null
+            cohere:
+              embedding_input_type: classification
+              wait_for_model: null
+            embeddings_dimensions: null
+            gemini:
+              api_endpoint: null
+              endpoint_id: null
+              location_id: null
+              project_id: null
+            huggingface:
+              use_cache: null
+              wait_for_model: null
+            input_cost: null
+            llama2_format: null
+            max_tokens: null
+            mistral_format: null
+            output_cost: null
+            temperature: null
+            top_k: null
+            top_p: null
+            upstream_path: null
+            upstream_url: null
+          provider: openai
+        route_type: llm/v1/chat
+        weight: 100
+    enabled: true
+    name: ai-proxy-advanced
+    protocols:
+    - grpc
+    - grpcs
+    - http
+    - https
+    tags:
+    - 'ai-manager-plugin-for: ai-manager-name: demo-gateway'
+  routes:
+  - name: llm-chat-route
+    paths:
+    - /chat
+    tags:
+    - 'ai-manager-route-for: ai-manager-name: demo-gateway'
+  tags:
+  - ai-manager-created
+  - 'ai-manager-name: demo-gateway'
+- host: api-service.default.svc.cluster.local
+  name: mcp-service
+  port: 9080
+  routes:
+  - name: mcp-route
+    paths:
+    - /marketplace
+    plugins:
+    - config:
+        mode: conversion-listener
+        server:
+          timeout: 60000
+        tools:
+        - annotations: null
+          description: Get users
+          headers: null
+          host: null
+          method: GET
+          parameters:
+          - description: Optional user ID
+            in: query
+            name: id
+            required: false
+            schema:
+              type: string
+          path: /marketplace/users
+          query: null
+          request_body: null
+          scheme: null
+        - annotations: null
+          description: Get orders for a user
+          headers: null
+          host: null
+          method: GET
+          parameters:
+          - description: User ID to filter orders
+            in: query
+            name: userid
+            required: true
+            schema:
+              type: string
+          path: /marketplace/orders
+          query: null
+          request_body: null
+          scheme: null
+      enabled: true
+      name: ai-mcp-proxy
+vaults:
+- config:
+    config_store_id: a204a333-a9bb-4aaa-a0b9-429abd04f3f2
+  name: konnect
+  prefix: mcpvault
