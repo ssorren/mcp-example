@@ -103,24 +103,8 @@ spec:
   selector:
     app: agent-test
   ports:
-  - port: 80
+  - port: 3443
     targetPort: 3443
     protocol: TCP
     name: http
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: agent-test-loadbalancer
-  namespace: agent-test
-  labels:
-    app: agent-test
-spec:
-  type: LoadBalancer
-  selector:
-    app: agent-test
-  ports:
-  - port: 80
-    targetPort: 3443
-    protocol: TCP
-    name: http
+

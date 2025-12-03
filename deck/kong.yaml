@@ -5,10 +5,67 @@ _info:
   select_tags:
     - mcp:example
 services:
-- host: localhost
+- connect_timeout: 60000
+  enabled: true
+  host: agent-test.agent-test.svc.cluster.local
+  name: agent-service
+  port: 3443
+  protocol: http
+  read_timeout: 60000
+  retries: 5
+  routes:
+  - https_redirect_status_code: 426
+    name: agent-prompt-route
+    path_handling: v0
+    paths:
+    - /ask
+    preserve_host: false
+    protocols:
+    - http
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: false
+    strip_path: false
+  - https_redirect_status_code: 426
+    methods:
+    - GET
+    name: agent-route
+    path_handling: v0
+    preserve_host: false
+    protocols:
+    - http
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: true
+    strip_path: true
+  write_timeout: 60000
+- connect_timeout: 60000
+  enabled: true
+  host: localhost
   name: llm-target-service
   plugins:
   - config:
+      balancer:
+        algorithm: round-robin
+        connect_timeout: 60000
+        failover_criteria:
+        - error
+        - timeout
+        hash_on_header: X-Kong-LLM-Request-ID
+        latency_strategy: tpot
+        read_timeout: 60000
+        retries: 5
+        slots: 10000
+        tokens_count_strategy: total-tokens
+        write_timeout: 60000
+      embeddings: null
+      genai_category: text/generation
+      llm_format: openai
+      max_request_body_size: 8192
+      model_name_header: true
+      response_streaming: allow
       targets:
       - auth:
           allow_override: false
@@ -27,10 +84,10 @@ services:
           param_value: null
         description: null
         logging:
-          log_payloads: false
+          log_payloads: true
           log_statistics: true
         model:
-          name: gpt-4
+          name: gpt-4.1-2025-04-14
           options:
             anthropic_version: null
             azure_api_version: "2023-05-15"
@@ -68,6 +125,7 @@ services:
           provider: openai
         route_type: llm/v1/chat
         weight: 100
+      vectordb: null
     enabled: true
     name: ai-proxy-advanced
     protocols:
@@ -75,28 +133,49 @@ services:
     - grpcs
     - http
     - https
-    tags:
-    - 'ai-manager-plugin-for: ai-manager-name: demo-gateway'
+  port: 80
+  protocol: http
+  read_timeout: 60000
+  retries: 5
   routes:
-  - name: llm-chat-route
+  - https_redirect_status_code: 426
+    name: llm-chat-route
+    path_handling: v0
     paths:
     - /chat
-    tags:
-    - 'ai-manager-route-for: ai-manager-name: demo-gateway'
-  tags:
-  - ai-manager-created
-  - 'ai-manager-name: demo-gateway'
-- host: api-service.default.svc.cluster.local
+    preserve_host: false
+    protocols:
+    - http
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: true
+    strip_path: true
+  write_timeout: 60000
+- connect_timeout: 60000
+  enabled: true
+  host: api-service.default.svc.cluster.local
   name: mcp-service
   port: 9080
+  protocol: http
+  read_timeout: 60000
+  retries: 5
   routes:
-  - name: mcp-route
+  - https_redirect_status_code: 426
+    name: mcp-route
+    path_handling: v0
     paths:
     - /marketplace
     plugins:
     - config:
+        logging:
+          log_payloads: false
+          log_statistics: false
+        max_request_body_size: 8192
         mode: conversion-listener
         server:
+          forward_client_headers: true
+          tag: null
           timeout: 60000
         tools:
         - annotations: null
@@ -133,8 +212,17 @@ services:
           scheme: null
       enabled: true
       name: ai-mcp-proxy
-vaults:
-- config:
-    config_store_id: a204a333-a9bb-4aaa-a0b9-429abd04f3f2
-  name: konnect
-  prefix: mcpvault
+      protocols:
+      - grpc
+      - grpcs
+      - http
+      - https
+    preserve_host: false
+    protocols:
+    - http
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: true
+    strip_path: true
+  write_timeout: 60000
