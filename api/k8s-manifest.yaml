@@ -17,6 +17,7 @@ spec:
       containers:
       - name: api
         image: sal1103/mock-api:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 9080
         env:
